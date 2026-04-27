@@ -20,6 +20,7 @@ type App struct {
 	varResolver     *service.VariableResolver
 	authBuilder     *service.AuthBuilder
 	proxyResolver   *service.ProxyResolver
+	importExportSvc *service.ImportExportService
 }
 
 // NewApp creates a new App application struct
@@ -51,6 +52,7 @@ func (a *App) startup(ctx context.Context) {
 	a.varResolver = service.NewVariableResolver()
 	a.authBuilder = service.NewAuthBuilder()
 	a.proxyResolver = service.NewProxyResolver()
+	a.importExportSvc = service.NewImportExportService()
 }
 
 // Collection Management
@@ -193,4 +195,27 @@ func (a *App) ResolveVariable(template string, variables map[string]string) (str
 // ValidateVariables validates that all variables in template can be resolved
 func (a *App) ValidateVariables(template string, variables map[string]string) []string {
 	return a.varResolver.ValidatePlaceholders(template, variables)
+}
+
+// Import/Export
+
+// ExportCollection exports a collection to a file
+func (a *App) ExportCollection(collectionID, filePath string, includeSensitive bool) error {
+	collection, err := a.collectionSvc.GetCollection(collectionID)
+	if err != nil {
+		return err
+	}
+
+	return a.importExportSvc.ExportCollection(collection, filePath, includeSensitive)
+}
+
+// ImportCollection imports a collection from a file
+func (a *App) ImportCollection(filePath string) (*domain.Collection, error) {
+	collection, err := a.importExportSvc.ImportCollection(filePath)
+	if err != nil {
+		return nil, err
+	}
+
+	// Create the imported collection
+	return a.collectionSvc.CreateCollection(collection.Name)
 }

@@ -14,9 +14,13 @@ export function DuplicateRequest(arg1:string,arg2:string):Promise<domain.Request
 
 export function ExecuteRequest(arg1:string,arg2:string):Promise<domain.ExecutionResult>;
 
+export function ExportCollection(arg1:string,arg2:string,arg3:boolean):Promise<void>;
+
 export function GetCollection(arg1:string):Promise<domain.Collection>;
 
 export function GetCollections():Promise<Array<domain.Collection>>;
+
+export function ImportCollection(arg1:string):Promise<domain.Collection>;
 
 export function ResolveVariable(arg1:string,arg2:Record<string, string>):Promise<string>;
 

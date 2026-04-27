@@ -1,6 +1,7 @@
 package transport
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -14,7 +15,8 @@ import (
 
 // HTTPExecutor executes HTTP requests
 type HTTPExecutor struct {
-	client *http.Client
+	client    *http.Client
+	sanitizer *domain.LogSanitizer
 }
 
 // NewHTTPExecutor creates a new HTTP executor
@@ -23,11 +25,17 @@ func NewHTTPExecutor() *HTTPExecutor {
 		client: &http.Client{
 			Timeout: 30 * time.Second,
 		},
+		sanitizer: domain.NewLogSanitizer(),
 	}
 }
 
 // Execute executes an HTTP request
 func (e *HTTPExecutor) Execute(request *domain.RequestNode) (*domain.ExecutionResult, error) {
+	return e.ExecuteWithContext(context.Background(), request)
+}
+
+// ExecuteWithContext executes an HTTP request with context (for cancellation)
+func (e *HTTPExecutor) ExecuteWithContext(ctx context.Context, request *domain.RequestNode) (*domain.ExecutionResult, error) {
 	startTime := time.Now()
 
 	// Build HTTP request
@@ -36,9 +44,23 @@ func (e *HTTPExecutor) Execute(request *domain.RequestNode) (*domain.ExecutionRe
 		return nil, domain.NewValidationError("failed to build request", err)
 	}
 
+	// Add context for cancellation
+	httpReq = httpReq.WithContext(ctx)
+
 	// Execute request
 	resp, err := e.client.Do(httpReq)
 	if err != nil {
+		// Check if context was cancelled
+		if ctx.Err() == context.Canceled {
+			return &domain.ExecutionResult{
+				StatusCode:   0,
+				StatusText:   "Request Cancelled",
+				ResponseTime: time.Since(startTime).Milliseconds(),
+				Error:        strPtr("Request was cancelled by user"),
+				Timestamp:    time.Now(),
+			}, domain.NewNetworkError("request cancelled", err)
+		}
+
 		return &domain.ExecutionResult{
 			StatusCode:   0,
 			StatusText:   "Request Failed",
@@ -49,17 +71,29 @@ func (e *HTTPExecutor) Execute(request *domain.RequestNode) (*domain.ExecutionRe
 	}
 	defer resp.Body.Close()
 
-	// Read response body
-	bodyBytes, err := io.ReadAll(resp.Body)
+	// Read response body with size limit (10MB)
+	const maxBodySize = 10 * 1024 * 1024
+	limitedReader := io.LimitReader(resp.Body, maxBodySize)
+	bodyBytes, err := io.ReadAll(limitedReader)
 	if err != nil {
 		return nil, domain.NewNetworkError("failed to read response body", err)
 	}
 
-	// Parse response headers
+	// Check if body was truncated
+	if len(bodyBytes) == maxBodySize {
+		// Try to read one more byte to check if there's more
+		oneByte := make([]byte, 1)
+		if n, _ := resp.Body.Read(oneByte); n > 0 {
+			bodyBytes = append(bodyBytes, []byte("\n\n[Response body truncated - exceeded 10MB limit]")...)
+		}
+	}
+
+	// Parse response headers (sanitize sensitive headers)
 	headers := make(map[string]string)
 	for key, values := range resp.Header {
 		headers[key] = strings.Join(values, ", ")
 	}
+	sanitizedHeaders := e.sanitizer.SanitizeHeaders(headers)
 
 	// Calculate metrics
 	responseTime := time.Since(startTime).Milliseconds()
@@ -70,7 +104,7 @@ func (e *HTTPExecutor) Execute(request *domain.RequestNode) (*domain.ExecutionRe
 		StatusText:      resp.Status,
 		ResponseTime:    responseTime,
 		ResponseSize:    responseSize,
-		ResponseHeaders: headers,
+		ResponseHeaders: sanitizedHeaders,
 		ResponseBody:    string(bodyBytes),
 		Error:           nil,
 		Timestamp:       time.Now(),
@@ -86,6 +120,17 @@ func (e *HTTPExecutor) ExecuteWithConfig(
 	authQueryParams map[string]string,
 	proxyURL string,
 ) (*domain.ExecutionResult, error) {
+	return e.ExecuteWithConfigAndContext(context.Background(), request, authHeaders, authQueryParams, proxyURL)
+}
+
+// ExecuteWithConfigAndContext executes request with config and context
+func (e *HTTPExecutor) ExecuteWithConfigAndContext(
+	ctx context.Context,
+	request *domain.RequestNode,
+	authHeaders map[string]string,
+	authQueryParams map[string]string,
+	proxyURL string,
+) (*domain.ExecutionResult, error) {
 	startTime := time.Now()
 
 	// Build HTTP request
@@ -93,6 +138,9 @@ func (e *HTTPExecutor) ExecuteWithConfig(
 	if err != nil {
 		return nil, domain.NewValidationError("failed to build request", err)
 	}
+
+	// Add context for cancellation
+	httpReq = httpReq.WithContext(ctx)
 
 	// Create client with proxy if provided
 	client := e.client
@@ -113,6 +161,17 @@ func (e *HTTPExecutor) ExecuteWithConfig(
 	// Execute request
 	resp, err := client.Do(httpReq)
 	if err != nil {
+		// Check if context was cancelled
+		if ctx.Err() == context.Canceled {
+			return &domain.ExecutionResult{
+				StatusCode:   0,
+				StatusText:   "Request Cancelled",
+				ResponseTime: time.Since(startTime).Milliseconds(),
+				Error:        strPtr("Request was cancelled by user"),
+				Timestamp:    time.Now(),
+			}, domain.NewNetworkError("request cancelled", err)
+		}
+
 		return &domain.ExecutionResult{
 			StatusCode:   0,
 			StatusText:   "Request Failed",
@@ -123,17 +182,28 @@ func (e *HTTPExecutor) ExecuteWithConfig(
 	}
 	defer resp.Body.Close()
 
-	// Read response body
-	bodyBytes, err := io.ReadAll(resp.Body)
+	// Read response body with size limit
+	const maxBodySize = 10 * 1024 * 1024
+	limitedReader := io.LimitReader(resp.Body, maxBodySize)
+	bodyBytes, err := io.ReadAll(limitedReader)
 	if err != nil {
 		return nil, domain.NewNetworkError("failed to read response body", err)
 	}
 
-	// Parse response headers
+	// Check if body was truncated
+	if len(bodyBytes) == maxBodySize {
+		oneByte := make([]byte, 1)
+		if n, _ := resp.Body.Read(oneByte); n > 0 {
+			bodyBytes = append(bodyBytes, []byte("\n\n[Response body truncated - exceeded 10MB limit]")...)
+		}
+	}
+
+	// Parse response headers (sanitize sensitive headers)
 	headers := make(map[string]string)
 	for key, values := range resp.Header {
 		headers[key] = strings.Join(values, ", ")
 	}
+	sanitizedHeaders := e.sanitizer.SanitizeHeaders(headers)
 
 	// Calculate metrics
 	responseTime := time.Since(startTime).Milliseconds()
@@ -144,7 +214,7 @@ func (e *HTTPExecutor) ExecuteWithConfig(
 		StatusText:      resp.Status,
 		ResponseTime:    responseTime,
 		ResponseSize:    responseSize,
-		ResponseHeaders: headers,
+		ResponseHeaders: sanitizedHeaders,
 		ResponseBody:    string(bodyBytes),
 		Error:           nil,
 		Timestamp:       time.Now(),
@@ -281,11 +351,9 @@ func (e *HTTPExecutor) addHeaders(req *http.Request, headers []*domain.KeyValueI
 
 // ExecuteWithTimeout executes request with custom timeout
 func (e *HTTPExecutor) ExecuteWithTimeout(request *domain.RequestNode, timeout time.Duration) (*domain.ExecutionResult, error) {
-	oldTimeout := e.client.Timeout
-	e.client.Timeout = timeout
-	defer func() { e.client.Timeout = oldTimeout }()
-
-	return e.Execute(request)
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+	return e.ExecuteWithContext(ctx, request)
 }
 
 func strPtr(s string) *string {

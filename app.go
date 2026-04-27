@@ -219,3 +219,10 @@ func (a *App) ImportCollection(filePath string) (*domain.Collection, error) {
 	// Create the imported collection
 	return a.collectionSvc.CreateCollection(collection.Name)
 }
+
+// OpenDevTools opens the browser developer tools
+func (a *App) OpenDevTools() {
+	// This will be handled by the runtime in development mode
+	// In production, this is a no-op
+	fmt.Println("DevTools requested - use F12 or right-click > Inspect")
+}

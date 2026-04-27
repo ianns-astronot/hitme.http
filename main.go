@@ -2,6 +2,7 @@ package main
 
 import (
 	"embed"
+	"os"
 
 	"github.com/wailsapp/wails/v2"
 	"github.com/wailsapp/wails/v2/pkg/options"
@@ -15,6 +16,9 @@ func main() {
 	// Create an instance of the app structure
 	app := NewApp()
 
+	// Check if running in development mode
+	isDev := os.Getenv("WAILS_DEV") != ""
+
 	// Create application with options
 	err := wails.Run(&options.App{
 		Title:  "HitMe HTTP",
@@ -27,6 +31,9 @@ func main() {
 		OnStartup:        app.startup,
 		Bind: []interface{}{
 			app,
+		},
+		Debug: options.Debug{
+			OpenInspectorOnStartup: isDev,
 		},
 	})
 

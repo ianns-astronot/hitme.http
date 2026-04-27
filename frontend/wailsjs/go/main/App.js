@@ -42,6 +42,10 @@ export function ImportCollection(arg1) {
   return window['go']['main']['App']['ImportCollection'](arg1);
 }
 
+export function OpenDevTools() {
+  return window['go']['main']['App']['OpenDevTools']();
+}
+
 export function ResolveVariable(arg1, arg2) {
   return window['go']['main']['App']['ResolveVariable'](arg1, arg2);
 }

@@ -17,7 +17,8 @@ import {
     AddRequest,
     UpdateRequest,
     DeleteRequest,
-    ExecuteRequest
+    ExecuteRequest,
+    OpenDevTools
 } from '../wailsjs/go/main/App';
 
 // Helper to create icon HTML (since we use innerHTML)
@@ -111,18 +112,32 @@ function renderApp() {
             <div class="app-container">
                 <div class="sidebar" id="sidebar">
                     <div class="collection-selector">
-                        <select class="collection-select" onchange="window.switchCollection(this.value)">
-                            ${allCollections.map(col => `
-                                <option value="${col.id}" ${col.id === currentCollection.id ? 'selected' : ''}>
-                                    ${col.name}
-                                </option>
-                            `).join('')}
-                        </select>
+                        <div class="collection-dropdown">
+                            <button class="collection-select" onclick="window.toggleCollectionDropdown()">
+                                <span class="collection-select-text">${currentCollection.name}</span>
+                                <svg class="collection-select-icon" width="12" height="8" viewBox="0 0 12 8" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                    <path d="M1.5 1.5L6 6L10.5 1.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                                </svg>
+                            </button>
+                            <div class="collection-dropdown-menu" id="collectionDropdownMenu">
+                                ${allCollections.map(col => `
+                                    <div class="collection-dropdown-item ${col.id === currentCollection.id ? 'active' : ''}" 
+                                         onclick="window.selectCollection('${col.id}')">
+                                        <span class="collection-dropdown-item-text">${col.name}</span>
+                                        ${col.id === currentCollection.id ? `
+                                            <svg class="collection-dropdown-item-check" width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                                <path d="M13.3333 4L6 11.3333L2.66667 8" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                                            </svg>
+                                        ` : ''}
+                                    </div>
+                                `).join('')}
+                            </div>
+                        </div>
                         <button class="btn-icon" onclick="window.addNewCollection()" title="New Collection">
-                            ${renderIcon('add', 18)}
+                            ${renderIcon('add', 12)}
                         </button>
                         <button class="btn-icon btn-danger" onclick="window.deleteCurrentCollection()" title="Delete Collection">
-                            ${renderIcon('delete', 18)}
+                            ${renderIcon('delete', 12)}
                         </button>
                     </div>
                     
@@ -513,16 +528,31 @@ function renderRequestView() {
                 <span class="breadcrumb-collection">${currentCollection.name}</span>
                 <span class="breadcrumb-separator">/</span>
                 <input type="text" class="breadcrumb-request" value="${currentRequest.name}" 
-                       onchange="window.updateRequestName(this.value)" placeholder="Request Name">
+                       onchange="window.updateRequestName(this.value)" 
+                       placeholder="Request name">
             </div>
             <div class="request-url-bar">
-                <select class="method-select" onchange="window.updateMethod(this.value)">
-                    <option value="GET" ${currentRequest.method === 'GET' ? 'selected' : ''}>GET</option>
-                    <option value="POST" ${currentRequest.method === 'POST' ? 'selected' : ''}>POST</option>
-                    <option value="PUT" ${currentRequest.method === 'PUT' ? 'selected' : ''}>PUT</option>
-                    <option value="PATCH" ${currentRequest.method === 'PATCH' ? 'selected' : ''}>PATCH</option>
-                    <option value="DELETE" ${currentRequest.method === 'DELETE' ? 'selected' : ''}>DELETE</option>
-                </select>
+                <div class="method-dropdown">
+                    <button class="method-select" onclick="window.toggleMethodDropdown()">
+                        <span class="method-select-text">${currentRequest.method}</span>
+                        <svg class="method-select-icon" width="10" height="6" viewBox="0 0 10 6" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M1 1L5 5L9 1" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
+                    </button>
+                    <div class="method-dropdown-menu" id="methodDropdownMenu">
+                        ${['GET', 'POST', 'PUT', 'PATCH', 'DELETE'].map(method => `
+                            <div class="method-dropdown-item ${currentRequest.method === method ? 'active' : ''}" 
+                                 onclick="window.selectMethod('${method}')">
+                                <span class="method-dropdown-item-text">${method}</span>
+                                ${currentRequest.method === method ? `
+                                    <svg class="method-dropdown-item-check" width="14" height="14" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                        <path d="M13.3333 4L6 11.3333L2.66667 8" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                                    </svg>
+                                ` : ''}
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
                 <div class="url-input-container">
                     <input type="text" id="urlInput" class="url-input" value="${currentRequest.url}" 
                            oninput="window.handleUrlInput(event)" 
@@ -532,7 +562,7 @@ function renderRequestView() {
                     <div id="autocompleteDropdown" class="autocomplete-dropdown" style="display: none;"></div>
                 </div>
                 <button class="btn-send" onclick="window.sendRequest()">
-                    ${renderIcon('send', 18)}
+                    ${renderIcon('send', 10)}
                     <span>Send</span>
                 </button>
             </div>
@@ -986,12 +1016,83 @@ window.selectSettingsItem = function(itemId) {
 };
 
 // Collection management
+window.toggleCollectionDropdown = function() {
+    const menu = document.getElementById('collectionDropdownMenu');
+    const dropdown = menu?.closest('.collection-dropdown');
+    const button = dropdown?.querySelector('.collection-select');
+    const isOpen = menu?.classList.contains('show');
+    
+    if (isOpen) {
+        menu.classList.remove('show');
+        dropdown?.classList.remove('open');
+    } else {
+        // Calculate position for fixed dropdown
+        if (button && menu) {
+            const rect = button.getBoundingClientRect();
+            menu.style.top = `${rect.bottom + 4}px`;
+            menu.style.left = `${rect.left}px`;
+            menu.style.width = `${rect.width}px`;
+        }
+        menu?.classList.add('show');
+        dropdown?.classList.add('open');
+    }
+};
+
+window.selectCollection = async function(collectionId) {
+    // Close dropdown
+    const menu = document.getElementById('collectionDropdownMenu');
+    const dropdown = menu?.closest('.collection-dropdown');
+    menu?.classList.remove('show');
+    dropdown?.classList.remove('open');
+    
+    // Switch collection
+    console.log('Switching collection to:', collectionId);
+    try {
+        currentCollection = await GetCollection(collectionId);
+        currentRequest = null;
+        activeCollectionTab = null;
+        renderApp();
+    } catch (err) {
+        console.error('Failed to switch collection:', err);
+        showErrorModal('Failed to switch collection', err.toString());
+    }
+};
+
+// Method dropdown management
+window.toggleMethodDropdown = function() {
+    const menu = document.getElementById('methodDropdownMenu');
+    const isOpen = menu?.classList.contains('show');
+    
+    if (isOpen) {
+        menu.classList.remove('show');
+    } else {
+        // Calculate position for fixed dropdown
+        const button = document.querySelector('.method-select-button');
+        if (button && menu) {
+            const rect = button.getBoundingClientRect();
+            menu.style.top = `${rect.bottom + 4}px`;
+            menu.style.left = `${rect.left}px`;
+            menu.style.width = `${rect.width}px`;
+        }
+        menu?.classList.add('show');
+    }
+};
+
+window.selectMethod = function(method) {
+    // Close dropdown
+    const menu = document.getElementById('methodDropdownMenu');
+    menu?.classList.remove('show');
+    
+    // Update method
+    window.updateMethod(method);
+};
+
 window.switchCollection = async function(collectionId) {
     console.log('Switching collection to:', collectionId);
     try {
         currentCollection = await GetCollection(collectionId);
         currentRequest = null;
-        activeSidebarTab = 'requests';
+        activeCollectionTab = null;
         renderApp();
     } catch (err) {
         console.error('Failed to switch collection:', err);
@@ -1685,8 +1786,71 @@ window.toggleThemeHandler = function() {
 };
 
 window.openDevToolsHandler = function() {
-    openDevTools();
+    // Try to simulate F12 key press
+    const event = new KeyboardEvent('keydown', {
+        key: 'F12',
+        code: 'F12',
+        keyCode: 123,
+        which: 123,
+        bubbles: true,
+        cancelable: true
+    });
+    
+    document.dispatchEvent(event);
+    
+    // Also try Ctrl+Shift+I
+    setTimeout(() => {
+        const ctrlShiftI = new KeyboardEvent('keydown', {
+            key: 'I',
+            code: 'KeyI',
+            keyCode: 73,
+            which: 73,
+            ctrlKey: true,
+            shiftKey: true,
+            bubbles: true,
+            cancelable: true
+        });
+        document.dispatchEvent(ctrlShiftI);
+    }, 100);
+    
+    // Show instructions in console
+    console.log('%c=== DevTools Instructions ===', 'color: #c96442; font-size: 14px; font-weight: bold;');
+    console.log('%cIf DevTools did not open automatically, use:', 'color: #5e5d59;');
+    console.log('%c• Press F12', 'color: #141413; font-weight: 500;');
+    console.log('%c• Right-click > Inspect', 'color: #141413; font-weight: 500;');
+    console.log('%c• Ctrl+Shift+I (Windows/Linux)', 'color: #141413; font-weight: 500;');
+    console.log('%c• Cmd+Option+I (macOS)', 'color: #141413; font-weight: 500;');
+    
+    // Show a subtle notification using existing modal system
+    showSuccessModal('DevTools: Press F12 or Right-click > Inspect');
 };
+
+// Helper function to show devtools notification
+function showDevToolsNotification() {
+    const notification = document.createElement('div');
+    notification.style.cssText = `
+        position: fixed;
+        bottom: 50px;
+        right: 20px;
+        background: rgba(201, 100, 66, 0.95);
+        color: white;
+        padding: 12px 20px;
+        border-radius: 8px;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+        z-index: 10001;
+        font-size: 13px;
+        font-weight: 500;
+        animation: slideIn 0.3s ease;
+    `;
+    notification.textContent = 'Press F12 to open DevTools';
+    
+    document.body.appendChild(notification);
+    
+    setTimeout(() => {
+        notification.style.animation = 'slideOut 0.3s ease';
+        setTimeout(() => notification.remove(), 300);
+    }, 3000);
+}
 
 window.getCurrentTheme = getCurrentTheme;
 
@@ -1750,6 +1914,26 @@ setTimeout(() => {
     console.log('Calling selectSettingsItem("variables")...');
     // Uncomment to test: window.selectSettingsItem('variables');
 }, 1000);
+
+// Close dropdown when clicking outside
+document.addEventListener('click', function(e) {
+    const menu = document.getElementById('collectionDropdownMenu');
+    const dropdown = e.target.closest('.collection-dropdown');
+    
+    if (menu && !dropdown && menu.classList.contains('show')) {
+        menu.classList.remove('show');
+        const dropdownContainer = menu.closest('.collection-dropdown');
+        dropdownContainer?.classList.remove('open');
+    }
+    
+    // Close method dropdown
+    const methodMenu = document.getElementById('methodDropdownMenu');
+    const methodDropdown = e.target.closest('.method-dropdown');
+    
+    if (methodMenu && !methodDropdown && methodMenu.classList.contains('show')) {
+        methodMenu.classList.remove('show');
+    }
+});
 
 // Start the app - MUST BE LAST!
 console.log('=== Starting app initialization ===');

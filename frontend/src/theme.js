@@ -44,14 +44,21 @@ export function initTheme() {
 
 // Open devtools console
 export function openDevTools() {
-    // In Wails, we can use runtime to open devtools
-    if (window.runtime && window.runtime.BrowserOpenURL) {
-        console.log('DevTools: Check browser console (F12)');
+    // Try to call backend function if available
+    if (window.go && window.go.main && window.go.main.App && window.go.main.App.OpenDevTools) {
+        window.go.main.App.OpenDevTools();
     }
-    // For web, just log
+    
+    // Also log to console
     console.log('=== DevTools Console ===');
+    console.log('Press F12 or Right-click > Inspect to open DevTools');
     console.log('Theme:', getCurrentTheme());
     console.log('Available commands:');
     console.log('- window.testFunctions() - Test all functions');
     console.log('- window.toggleTheme() - Toggle theme');
+    
+    // Try to focus console
+    if (typeof console.clear === 'function') {
+        // Don't clear, just make it visible
+    }
 }

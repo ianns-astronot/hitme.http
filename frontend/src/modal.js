@@ -78,8 +78,8 @@ function showModal(config) {
     header.className = 'modal-header';
     
     const icon = document.createElement('span');
-    icon.className = 'modal-icon';
-    icon.textContent = getIcon(config.type);
+    icon.className = `modal-icon ${config.type}`;
+    icon.innerHTML = getIcon(config.type);
     
     const title = document.createElement('h3');
     title.className = 'modal-title';
@@ -119,7 +119,11 @@ function showModal(config) {
         
         body.appendChild(input);
     } else {
-        body.textContent = config.message;
+        // Create message paragraph for other modals
+        const message = document.createElement('p');
+        message.className = 'modal-message';
+        message.textContent = config.message;
+        body.appendChild(message);
     }
     
     // Create modal footer
@@ -195,10 +199,25 @@ function closeModal(overlay) {
 
 function getIcon(type) {
     const icons = {
-        error: '❌',
-        success: '✅',
-        confirm: '❓',
-        info: 'ℹ️'
+        error: `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="10"></circle>
+            <line x1="15" y1="9" x2="9" y2="15"></line>
+            <line x1="9" y1="9" x2="15" y2="15"></line>
+        </svg>`,
+        success: `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="10"></circle>
+            <polyline points="9 12 11 14 15 10"></polyline>
+        </svg>`,
+        confirm: `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="10"></circle>
+            <line x1="12" y1="8" x2="12" y2="12"></line>
+            <line x1="12" y1="16" x2="12.01" y2="16"></line>
+        </svg>`,
+        info: `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="10"></circle>
+            <line x1="12" y1="16" x2="12" y2="12"></line>
+            <line x1="12" y1="8" x2="12.01" y2="8"></line>
+        </svg>`
     };
-    return icons[type] || 'ℹ️';
+    return icons[type] || icons.info;
 }

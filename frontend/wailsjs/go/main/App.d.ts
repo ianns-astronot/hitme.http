@@ -22,6 +22,8 @@ export function GetCollections():Promise<Array<domain.Collection>>;
 
 export function ImportCollection(arg1:string):Promise<domain.Collection>;
 
+export function OpenDevTools():Promise<void>;
+
 export function ResolveVariable(arg1:string,arg2:Record<string, string>):Promise<string>;
 
 export function UpdateCollection(arg1:domain.Collection):Promise<void>;

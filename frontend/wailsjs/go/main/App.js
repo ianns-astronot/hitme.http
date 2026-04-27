@@ -26,12 +26,20 @@ export function ExecuteRequest(arg1, arg2) {
   return window['go']['main']['App']['ExecuteRequest'](arg1, arg2);
 }
 
+export function ExportCollection(arg1, arg2, arg3) {
+  return window['go']['main']['App']['ExportCollection'](arg1, arg2, arg3);
+}
+
 export function GetCollection(arg1) {
   return window['go']['main']['App']['GetCollection'](arg1);
 }
 
 export function GetCollections() {
   return window['go']['main']['App']['GetCollections']();
+}
+
+export function ImportCollection(arg1) {
+  return window['go']['main']['App']['ImportCollection'](arg1);
 }
 
 export function ResolveVariable(arg1, arg2) {

@@ -95,7 +95,12 @@ func (s *LogSanitizer) SanitizeProxyConfig(proxy *ProxyConfig) *ProxyConfig {
 	return sanitized
 }
 
-// isSensitive checks if a key is sensitive
+// IsSensitive checks if a key name suggests sensitive data
+func (s *LogSanitizer) IsSensitive(key string) bool {
+	return s.isSensitive(key)
+}
+
+// isSensitive checks if a key name suggests sensitive data (internal)
 func (s *LogSanitizer) isSensitive(key string) bool {
 	lowerKey := strings.ToLower(key)
 	for _, sensitive := range s.sensitiveKeys {

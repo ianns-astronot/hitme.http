@@ -1,1 +1,40 @@
-*.md
+# Binaries for programs and plugins
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+bin/
+
+# Test binary, built with `go test -c`
+*.test
+
+# Output of the go coverage tool
+*.out
+
+# Go workspace file
+go.work
+go.work.sum
+
+# Wails build directory
+build/bin/
+
+# Frontend
+frontend/dist
+frontend/node_modules
+frontend/package-lock.json
+
+# IDE
+.idea
+.vscode
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Documentation (SRS and PHASES)
+SRS.md
+docs/PHASES*.md

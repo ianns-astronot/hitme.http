@@ -5,18 +5,18 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"time"
 
 	"hitme-http/internal/domain"
 	"hitme-http/internal/persistence"
-
-	"github.com/google/uuid"
+	"hitme-http/internal/service"
+	"hitme-http/internal/transport"
 )
 
 // App struct
 type App struct {
-	ctx  context.Context
-	repo domain.CollectionRepository
+	ctx             context.Context
+	collectionSvc   *service.CollectionService
+	httpExecutor    *transport.HTTPExecutor
 }
 
 // NewApp creates a new App application struct
@@ -24,8 +24,7 @@ func NewApp() *App {
 	return &App{}
 }
 
-// startup is called when the app starts. The context is saved
-// so we can call the runtime methods
+// startup is called when the app starts
 func (a *App) startup(ctx context.Context) {
 	a.ctx = ctx
 	
@@ -43,63 +42,91 @@ func (a *App) startup(ctx context.Context) {
 		return
 	}
 	
-	a.repo = repo
+	// Initialize services
+	a.collectionSvc = service.NewCollectionService(repo)
+	a.httpExecutor = transport.NewHTTPExecutor()
 }
+
+// Collection Management
 
 // GetCollections returns all collections
 func (a *App) GetCollections() ([]*domain.Collection, error) {
-	return a.repo.FindAll()
+	return a.collectionSvc.GetAllCollections()
 }
 
 // GetCollection returns a collection by ID
 func (a *App) GetCollection(id string) (*domain.Collection, error) {
-	return a.repo.FindByID(id)
+	return a.collectionSvc.GetCollection(id)
 }
 
 // CreateCollection creates a new collection
 func (a *App) CreateCollection(name string) (*domain.Collection, error) {
-	if name == "" {
-		return nil, domain.NewValidationError("collection name is required", nil)
-	}
-
-	now := time.Now()
-	collection := &domain.Collection{
-		ID:            uuid.New().String(),
-		Name:          name,
-		Variables:     make(map[string]string),
-		GlobalAuth:    &domain.AuthConfig{Type: "none"},
-		Proxies:       make([]*domain.ProxyConfig, 0),
-		ActiveProxyID: nil,
-		Requests:      make([]*domain.RequestNode, 0),
-		CreatedAt:     now,
-		UpdatedAt:     now,
-	}
-
-	if err := a.repo.Create(collection); err != nil {
-		return nil, err
-	}
-
-	return collection, nil
+	return a.collectionSvc.CreateCollection(name)
 }
 
 // UpdateCollection updates an existing collection
 func (a *App) UpdateCollection(collection *domain.Collection) error {
-	if collection.ID == "" {
-		return domain.NewValidationError("collection ID is required", nil)
-	}
-	if collection.Name == "" {
-		return domain.NewValidationError("collection name is required", nil)
-	}
-
-	collection.UpdatedAt = time.Now()
-	return a.repo.Update(collection)
+	return a.collectionSvc.UpdateCollection(collection)
 }
 
 // DeleteCollection deletes a collection
 func (a *App) DeleteCollection(id string) error {
-	if id == "" {
-		return domain.NewValidationError("collection ID is required", nil)
+	return a.collectionSvc.DeleteCollection(id)
+}
+
+// Request Management
+
+// AddRequest adds a request to a collection
+func (a *App) AddRequest(collectionID string, request *domain.RequestNode) error {
+	return a.collectionSvc.AddRequest(collectionID, request)
+}
+
+// UpdateRequest updates a request in a collection
+func (a *App) UpdateRequest(collectionID string, request *domain.RequestNode) error {
+	return a.collectionSvc.UpdateRequest(collectionID, request)
+}
+
+// DeleteRequest deletes a request from a collection
+func (a *App) DeleteRequest(collectionID, requestID string) error {
+	return a.collectionSvc.DeleteRequest(collectionID, requestID)
+}
+
+// DuplicateRequest duplicates a request in a collection
+func (a *App) DuplicateRequest(collectionID, requestID string) (*domain.RequestNode, error) {
+	return a.collectionSvc.DuplicateRequest(collectionID, requestID)
+}
+
+// Request Execution
+
+// ExecuteRequest executes an HTTP request
+func (a *App) ExecuteRequest(collectionID, requestID string) (*domain.ExecutionResult, error) {
+	// Get collection
+	collection, err := a.collectionSvc.GetCollection(collectionID)
+	if err != nil {
+		return nil, err
 	}
 
-	return a.repo.Delete(id)
+	// Find request
+	var request *domain.RequestNode
+	for _, r := range collection.Requests {
+		if r.ID == requestID {
+			request = r
+			break
+		}
+	}
+
+	if request == nil {
+		return nil, domain.NewValidationError("request not found", nil)
+	}
+
+	// Execute request
+	result, err := a.httpExecutor.Execute(request)
+	
+	// Save result to lastRun (even if error)
+	if result != nil {
+		request.LastRun = result
+		a.collectionSvc.UpdateRequest(collectionID, request)
+	}
+
+	return result, err
 }

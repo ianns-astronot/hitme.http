@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Onclick</title>
+    <style>
+        .test-item {
+            padding: 10px;
+            margin: 5px;
+            background: #ddd;
+            cursor: pointer;
+        }
+        .test-item:hover {
+            background: #ccc;
+        }
+    </style>
+</head>
+<body>
+    <h1>Test Onclick</h1>
+    
+    <div id="container"></div>
+    
+    <script>
+        window.testFunction = function(id) {
+            console.log('testFunction called with:', id);
+            alert('Clicked: ' + id);
+        };
+        
+        const items = ['item1', 'item2', 'item3'];
+        
+        const html = items.map(item => `
+            <div class="test-item" onclick="window.testFunction('${item}')">
+                Click me: ${item}
+            </div>
+        `).join('');
+        
+        document.getElementById('container').innerHTML = html;
+        
+        console.log('Test page loaded');
+        console.log('testFunction type:', typeof window.testFunction);
+    </script>
+</body>
+</html>

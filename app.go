@@ -17,6 +17,9 @@ type App struct {
 	ctx             context.Context
 	collectionSvc   *service.CollectionService
 	httpExecutor    *transport.HTTPExecutor
+	varResolver     *service.VariableResolver
+	authBuilder     *service.AuthBuilder
+	proxyResolver   *service.ProxyResolver
 }
 
 // NewApp creates a new App application struct
@@ -45,6 +48,9 @@ func (a *App) startup(ctx context.Context) {
 	// Initialize services
 	a.collectionSvc = service.NewCollectionService(repo)
 	a.httpExecutor = transport.NewHTTPExecutor()
+	a.varResolver = service.NewVariableResolver()
+	a.authBuilder = service.NewAuthBuilder()
+	a.proxyResolver = service.NewProxyResolver()
 }
 
 // Collection Management
@@ -98,7 +104,7 @@ func (a *App) DuplicateRequest(collectionID, requestID string) (*domain.RequestN
 
 // Request Execution
 
-// ExecuteRequest executes an HTTP request
+// ExecuteRequest executes an HTTP request with full configuration
 func (a *App) ExecuteRequest(collectionID, requestID string) (*domain.ExecutionResult, error) {
 	// Get collection
 	collection, err := a.collectionSvc.GetCollection(collectionID)
@@ -119,8 +125,54 @@ func (a *App) ExecuteRequest(collectionID, requestID string) (*domain.ExecutionR
 		return nil, domain.NewValidationError("request not found", nil)
 	}
 
+	// Resolve variables
+	resolvedRequest, err := a.varResolver.ResolveRequest(request, collection.Variables)
+	if err != nil {
+		return nil, fmt.Errorf("failed to resolve variables: %w", err)
+	}
+
+	// Determine auth (request override > collection global)
+	authConfig := collection.GlobalAuth
+	if request.AuthOverride != nil {
+		authConfig = request.AuthOverride
+	}
+
+	// Build auth headers and query params
+	authHeaders, err := a.authBuilder.BuildHeaders(authConfig, collection.Variables)
+	if err != nil {
+		return nil, fmt.Errorf("failed to build auth headers: %w", err)
+	}
+
+	authQueryParams, err := a.authBuilder.BuildQueryParams(authConfig, collection.Variables)
+	if err != nil {
+		return nil, fmt.Errorf("failed to build auth query params: %w", err)
+	}
+
+	// Resolve proxy
+	proxy, err := a.proxyResolver.ResolveProxy(
+		collection.Proxies,
+		collection.ActiveProxyID,
+		request.ProxyOverrideID,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to resolve proxy: %w", err)
+	}
+
+	proxyURL := ""
+	if proxy != nil {
+		proxyURL, err = a.proxyResolver.BuildProxyURL(proxy)
+		if err != nil {
+			return nil, fmt.Errorf("failed to build proxy URL: %w", err)
+		}
+	}
+
 	// Execute request
-	result, err := a.httpExecutor.Execute(request)
+	result, err := a.httpExecutor.ExecuteWithConfig(
+		resolvedRequest,
+		authHeaders,
+		authQueryParams,
+		proxyURL,
+	)
 	
 	// Save result to lastRun (even if error)
 	if result != nil {
@@ -129,4 +181,16 @@ func (a *App) ExecuteRequest(collectionID, requestID string) (*domain.ExecutionR
 	}
 
 	return result, err
+}
+
+// Variable Management
+
+// ResolveVariable resolves a single variable value
+func (a *App) ResolveVariable(template string, variables map[string]string) (string, error) {
+	return a.varResolver.Resolve(template, variables)
+}
+
+// ValidateVariables validates that all variables in template can be resolved
+func (a *App) ValidateVariables(template string, variables map[string]string) []string {
+	return a.varResolver.ValidatePlaceholders(template, variables)
 }

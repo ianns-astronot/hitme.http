@@ -34,10 +34,18 @@ export function GetCollections() {
   return window['go']['main']['App']['GetCollections']();
 }
 
+export function ResolveVariable(arg1, arg2) {
+  return window['go']['main']['App']['ResolveVariable'](arg1, arg2);
+}
+
 export function UpdateCollection(arg1) {
   return window['go']['main']['App']['UpdateCollection'](arg1);
 }
 
 export function UpdateRequest(arg1, arg2) {
   return window['go']['main']['App']['UpdateRequest'](arg1, arg2);
+}
+
+export function ValidateVariables(arg1, arg2) {
+  return window['go']['main']['App']['ValidateVariables'](arg1, arg2);
 }

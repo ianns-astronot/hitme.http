@@ -18,6 +18,10 @@ export function GetCollection(arg1:string):Promise<domain.Collection>;
 
 export function GetCollections():Promise<Array<domain.Collection>>;
 
+export function ResolveVariable(arg1:string,arg2:Record<string, string>):Promise<string>;
+
 export function UpdateCollection(arg1:domain.Collection):Promise<void>;
 
 export function UpdateRequest(arg1:string,arg2:domain.RequestNode):Promise<void>;
+
+export function ValidateVariables(arg1:string,arg2:Record<string, string>):Promise<Array<string>>;
